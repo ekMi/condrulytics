@@ -13,7 +13,7 @@ This project aims to explore and analyze historical data from the Condrusian Cha
 ## Project Pipeline
 
 1. **Raw data unzipping**  
-   Unzipping orinal datasets fetched from https://challengecondrusien.com/archives/
+   Unzipping original datasets fetched from https://challengecondrusien.com/archives/
 
 2. **PDF Parsing**  
    Convert raw ranking PDFs into structured data
@@ -40,4 +40,7 @@ This project aims to explore and analyze historical data from the Condrusian Cha
 
 ## Status
 
-Project in early development — structure and features will evolve over time.
+- Data unzipping - Done
+- Parsing (pdf to csv)
+- Cleaning
+- Descriptive analysis
