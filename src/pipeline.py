@@ -6,10 +6,12 @@ import pandas as pd
 from utils.logging_config import setup_logging
 from extraction.unzip import unzip_all
 from parsing.services import parse_folder
+from cleaning.clean import clean
 
 
 PARQUET_DIR = Path("data/processed/parquet")
-FINAL_PATH = Path("data/processed/results.parquet")
+PROCESSED_PATH = Path("data/processed/results.parquet")
+CLEANED_PATH = Path("data/cleaned/results.parquet")
 
 
 def build_final_dataset():
@@ -25,16 +27,16 @@ def build_final_dataset():
 
     df = df.drop_duplicates(subset=["racekey", "Nom"])
 
-    df.to_parquet(FINAL_PATH, index=False)
+    df.to_parquet(PROCESSED_PATH, index=False)
 
-    logger.info(f"Final dataset written: {FINAL_PATH} ({len(df)} rows)")
+    logger.info(f"Final dataset written: {PROCESSED_PATH} ({len(df)} rows)")
 
 
 def main():
     parser = argparse.ArgumentParser(description="ETL Pipeline")
     parser.add_argument(
         "--step",
-        choices=["all", "unzip", "parse", "build", "load"],
+        choices=["all", "unzip", "parse", "build", "clean", "load"],
         default="all",
         help="Step to run"
     )
@@ -74,6 +76,15 @@ def main():
     if args.step in ["all", "build"]:
         logger.info("Step: Build final dataset")
         build_final_dataset()
+
+
+    # ---------------- CLEAN ----------------
+    if args.step in ["all", "clean"]:
+        logger.info("Step: Clean")
+        clean(
+            processed_path=PROCESSED_PATH, 
+            cleaned_path=CLEANED_PATH
+        )
 
     # ---------------- LOAD ----------------
     if args.step in ["all", "load"]:
