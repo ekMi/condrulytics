@@ -81,7 +81,6 @@ class Parser2025(ParserStrategy):
 
         try:
             rank = parts[0]
-            sexe = parts[4]
 
             # trouver le temps
             temps_idx = None
@@ -95,7 +94,7 @@ class Parser2025(ParserStrategy):
 
             temps = parts[temps_idx]
 
-            # trouver la catégorie dynamiquement
+            # trouver la catégorie
             cat = None
             cat_idx = None
 
@@ -108,15 +107,24 @@ class Parser2025(ParserStrategy):
 
             if not cat:
                 return None
+            
+            sexe = None
+            sexe_idx = None
+            for i in range(2,6):
+                if re.match(r"^(H|F)$", parts[i]):
+                    sexe = parts[i]
+                    sexe_idx = i
+                    break
+
 
             # club = entre sexe et catégorie
-            club_parts = parts[5:cat_idx]
+            club_parts = parts[sexe_idx+1:cat_idx]
             club = normalize_name(" ".join(club_parts))
 
             if club in ("*", "-"):
                 club = ""
 
-            nom = normalize_name(" ".join(parts[2:4]))
+            nom = normalize_name(" ".join(parts[2:sexe_idx]))
 
             return {
                 "Position": rank,

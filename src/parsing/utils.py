@@ -5,8 +5,8 @@ from pathlib import Path
 import pdfplumber
 
 
-CAT_MEN  = re.compile(r"^(E?SH|JH|V\d+|SE|EH|SEN|V\d+H|VE\d+|SEH|JUH|ESP)$")
-CAT_WOMEN = re.compile(r"^(E?SF|JF|SD|A\d+|DA|JUF|AI\d+|DAM|SEF|EF|V\d+F)$")
+CAT_MEN  = re.compile(r"^(E?SH|JH|V\d+|SE|EH|SEN|V\d+H|VE\d+|SEH|JUH|ESP|H|GAR|DISH)$")
+CAT_WOMEN = re.compile(r"^(E?SF|JF|SD|A\d+|DA|JUF|AI\d+|DAM|SEF|EF|V\d+F|F|FIL|ED|DISF)$")
 
 MONTH = {
     "janvier": 1,
@@ -62,7 +62,7 @@ def sex_from_category(cat: str) -> str:
         return "H"
     if CAT_WOMEN.match(cat):
         return "F"
-    return ""
+    return "X"
 
 
 def extract_date(text: str):

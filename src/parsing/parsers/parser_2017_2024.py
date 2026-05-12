@@ -68,9 +68,11 @@ class Parser2017_2024(ParserStrategy):
                             temps = row[7]
 
                         cat = row[4]
+                        if cat == '1':
+                            continue
                         rank_category = row[5]
                         nom = normalize_name(row[2])
-                        if not nom or nom == "0":
+                        if not nom or nom == "0" or "/" in nom:
                             continue
                         club = normalize_name(row[3])
                         sex = sex_from_category(cat)

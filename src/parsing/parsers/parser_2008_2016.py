@@ -16,6 +16,14 @@ from ..utils import (
 
 logger = logging.getLogger(__name__)
 
+CATEGORIES = {
+    "ESF", "SEF", "V1F", "V2F", "V3F",
+    "V4F", "ESH", "SEH", "V1H", "V2H", "V3H",
+    "V4H", "xxx", "XXX", "ED", "DA", "A1", "A2",
+    "A3", "A4" ,"EH", "SE", "V1", "V2", "V3", "V4",
+    "DAM", "AI1", "AI2", "AI3", "AI4", "ESP", "SEN"
+}
+
 class Parser2008_2016(ParserStrategy):
 
     @staticmethod
@@ -60,37 +68,35 @@ class Parser2008_2016(ParserStrategy):
                         if not rank.isdigit():
                             continue
 
-                        dos = row[1]
-                        # si colonne numéro de dossard absent, on applique un offset 
-                        offset = 0 if dos.isdigit() else 1
+                        has_bib = row[1].isdigit()
 
-                        club = row[4-offset]
-                        if club.isdigit():
-                            offset += 1
+                        bib = row[1] if has_bib else None
+                        start = 2 if has_bib else 1
 
-                        temps = row[6 - offset]
-                        # si la colonne 6 n'est pas un temps
-                        if not re.match(r"\d{1,2}:\d{2}:\d{2}", temps):
-                            # c'est que le nom et le prénom sont dans deux colonnes et il faut les rassembler
-                            temps = row[7 - offset]
-                            cat = row[5 - offset]
-                            rank_category = row[6 - offset]
-                            nom = normalize_name(" ".join(row[2-offset:4-offset]))
-                            club =normalize_name(row[4 - offset])
-                        else:
-                            cat = row[4 - offset]
-                            rank_category = row[5 - offset]
-                            if club.isdigit():
-                                if offset > 1:
-                                    nom = normalize_name(row[1])
-                                else:
-                                    nom = normalize_name(row[2])
-                                club = ""
+                        # colonnes fixes à droite
+                        speed = row[-1]
+                        pace = row[-2]
+                        time = row[-3]
+                        rank_category = row[-4]
+                        cat = row[-5]
+
+                        middle = row[start:-5]
+                        club = None
+
+                        if len(middle) > 1:
+                            possible_club = middle[-1]
+
+                            # si le dernier champ n'est PAS une catégorie,
+                            # on considère que c'est un club
+                            if possible_club not in CATEGORIES:
+                                club = normalize_name(possible_club)
+                                fullname = normalize_name(" ".join(middle[:-1]))
                             else:
-                                nom = normalize_name(row[2 - offset])
-                                club = normalize_name(row[3 - offset])
-                        
-                        if not nom or nom == "0":
+                                fullname = normalize_name(" ".join(middle))
+                        else:
+                            fullname = normalize_name(middle[0])
+
+                        if not fullname or fullname == "0":
                             continue
                         
                         sex = sex_from_category(cat)
@@ -99,12 +105,12 @@ class Parser2008_2016(ParserStrategy):
 
                         rows.append({
                             "Position": rank,
-                            "Nom": nom,
+                            "Nom": fullname,
                             "Club": club,
                             "Sexe": sex,
                             "Categorie": cat,
                             "Position Catégorie": rank_category,
-                            "Temps": temps,
+                            "Temps": time,
                             "NomCourse": name,
                             "Date": date,
                             "Distance": dist,
