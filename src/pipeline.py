@@ -7,6 +7,7 @@ from utils.logging_config import setup_logging
 from extraction.unzip import unzip_all
 from parsing.services import parse_folder
 from cleaning.clean import clean
+from loading.load import load_parquet_to_postgres
 
 
 PARQUET_DIR = Path("data/processed/parquet")
@@ -88,7 +89,10 @@ def main():
 
     # ---------------- LOAD ----------------
     if args.step in ["all", "load"]:
-        logger.info("Step: Load DB (TODO)")
+        logger.info("Step: Load DB")
+        load_parquet_to_postgres(
+            parquet_path="data/cleaned/results.parquet"
+        )
 
     logger.info("=== END PIPELINE ===")
 

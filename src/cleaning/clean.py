@@ -1,6 +1,7 @@
 import pandas as pd
 import logging
 from pathlib import Path
+from .clean_names import clean_names
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,8 @@ CATEGORIES_MAPPING = {
 INVALID_VALUES = {
     "#VALEUR!"
 }
+
+
 def _normalize_time(value):
 
     if pd.isna(value):
@@ -185,16 +188,18 @@ def clean(processed_path: str | Path, cleaned_path: str | Path):
     df.loc[mask1, 'NomCourse'] = "Les 10 Miles De Vyle-Tharoul"
     df.loc[mask2, 'NomCourse'] = "Les 10 Miles De Vyle-Tharoul"
 
-    # Correction des distances pour quatre courses
+    # Correction des distances pour cinq courses
     race1_mask = df["source_file"] == "2012-CONDRUSIEN-MODAVE-11.30.pdf"
     race2_mask = df["source_file"] == "210807-CONDRUSIEN-GOAL TIMING-VILLERS AUX TOURS-5000.pdf"
     race3_mask = df["source_file"] == "2015-CONDRUSIEN-FRAITURE 2- 5.29.pdf"
     race4_mask = df["source_file"] == "2015-CONDRUSIEN-FRAITURE 2- 9.2.pdf"
+    race5_mask = df["source_file"] == "2012-CONDRUSIEN-MODAVE-11.30.pdf"
 
     df.loc[race1_mask, 'Distance'] = 11.3
     df.loc[race2_mask, 'Distance'] = 5.5
     df.loc[race3_mask, 'Distance'] = 5.29
     df.loc[race4_mask, 'Distance'] = 9.2
+    df.loc[race5_mask, 'Distance'] = 11.3
 
     # Coureurs
     # -----------
@@ -211,13 +216,9 @@ def clean(processed_path: str | Path, cleaned_path: str | Path):
     # Correction de Simonet Yves (qui commence par (Cid:10))
     df.loc[df['Nom'] == "(Cid:10)Simonet Yves", 'Nom'] = "Simonet Yves"
 
-    # Tentative de récupération des noms.
-
+    # Correction des noms.
+    df = clean_names(df)
 
     df.to_parquet(cleaned_path)
     logger.info(f"Cleaned dataset written: {cleaned_path} ({len(df)} rows)")
-
-
-
-
 
