@@ -1,0 +1,302 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{longtable}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+
+\geometry{margin=2.5cm}
+\onehalfspacing
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    citecolor=black
+}
+
+\definecolor{codegray}{RGB}{245,245,245}
+\definecolor{codeborder}{RGB}{220,220,220}
+
+\lstdefinestyle{pythonstyle}{
+    language=Python,
+    backgroundcolor=\color{codegray},
+    basicstyle=\ttfamily\small,
+    frame=single,
+    rulecolor=\color{codeborder},
+    breaklines=true,
+    showstringspaces=false,
+    tabsize=4
+}
+
+\title{CondruLytics\\Analyse et structuration des resultats du Challenge Condrusien}
+\author{Nom de l'etudiant : \underline{\hspace{6cm}}}
+\date{Annee academique : \underline{\hspace{4cm}}}
+
+\begin{document}
+
+\pagenumbering{gobble}
+\begin{titlepage}
+    \centering
+    \vspace*{1.5cm}
+
+    \includegraphics[height=4cm]{./unamur.png}\\[0.4cm]
+    {\Large \textbf{Université de Namur}}\\[0.1cm]
+    {\large \textbf{Faculté d'Informatique}}\\[1.8cm]
+
+    {\Large \textbf{IEDC001 – Projet individuel}\par}
+    \vspace{1.2cm}
+
+    {\Huge \textbf{CondruLytics}\par}
+    \vspace{0.5cm}
+    {\Large Analyse, nettoyage et valorisation des résultats \\ du Challenge Condrusien \\ de 2006 a 2025\par}
+
+    \vfill
+
+    \begin{tabular}{rl}
+        Etudiant : Mestré Michaël \\
+        Professeur : Frénay Benoît \\
+        Annee academique : 2025-2026 \\
+    \end{tabular}
+
+    \vfill
+
+    {\large \today\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+
+\section{Introduction}
+
+Le projet \textit{CondruLytics} a pour objectif de transformer des résultats historiques des courses du \textbf{Challenge Condrusien}  en un jeu de données exploitable pour l'analyse, la visualisation et la modélisation. Les données de départ sont principalement des classements au format PDF, publiés sur plusieurs années et selon des formats variables. Cette hétérogenéité rend nécessaire la mise en place d'un pipeline capable d'extraire les informations, de les harmoniser et de les stocker dans une base de données qui représentera la source stable pour la suite des analyses.
+
+Le projet couvre les principales étapes d'un pipeline de données : extraction des fichiers, parsing des PDF, consolidation, nettoyage, chargement dans une base PostgreSQL, création de variables, apprentissage automatique pour prédire le temps des coureurs sur différentes courses et enfin visualisation interactive via le framework Python Streamlit \footnote{\url{https://streamlit.io}}.
+
+\section{Contexte du projet}
+
+Le \textbf{Challenge Condrusien} \footnote{\url{https://challengecondrusien.com}} est un challenge de course à pied amateur sur routes et chemins vallonés qui regroupe une vingtaine d'organisation chaque année dans le Condroz liégeois. Chaque organisation propose différentes distances: une petite sous les 7km, une longue entre 10 et 17km et parfois une version trail de plus de 20km. Les classements contiennent notamment le nom des coureurs, leur position générale, leur catégorie, leur temps, leur club, la distance de la course et la date de l'épreuve. Les fichiers ZIP de départ proviennent de la page officielle des archives du Challenge Condrusien \footnote{\url{https://challengecondrusien.com/archives/}}. Les données d'archives couvrent la periode 2006-2025 à l'exception de l'année 2020 en raison de la pandémie de COVID-19.
+
+La difficulté principale provient du fait que les classements ne suivent pas un format unique. Les PDF présentent des structures differentes : colonnes absentes, ordre variable des champs, présence ou non du numero de dossard, informations de course encodées dans le texte, ou encore changements de mise en page selon les années. Le projet répond a cette contrainte par l'utilisation de plusieurs parseurs spécialisés. Après cette étape d'extraction, les données sont nettoyées pour harmoniser les catégories, normaliser les temps et corriger les erreurs d'extraction. Le format des noms des coureurs sont strandardisés et certaines erreurs de saisie sont corrigées. La base de données relationnelle créée permet ensuite de structurer les données pour des analyses, des expérimentations de modélisation et différentes visualisations interactives.
+
+\section{Objectifs}
+
+Les objectifs du projet peuvent être regroupés selon les grands axes suivants:
+
+\begin{enumerate}[label=\arabic*.]
+    \item \textbf{Construire un jeu de données fiable} a partir de fichiers PDF historiques.
+    \item \textbf{Harmoniser les informations} relatives aux coureurs, aux courses, aux catégories et aux performances.
+    \item \textbf{Mettre en place une base de données stable} permettant de consulter les résultats, les coureurs et les courses.
+    \item \textbf{Préparer des variables de modélisation} afin d'analyser l'évolution des performances et d'expérimenter des approches prédictives.
+    \item \textbf{Créer des visualisations interactives} pour explorer les données et communiquer les résultats.
+\end{enumerate}
+
+\section{Extraction des données et préparation}
+
+\subsection{Architecture générale}
+
+Le projet est organisé sous forme de modules Python separés par responsabilité. Cette décomposition facilite la maintenance et rend le pipeline reproductible.
+
+\begin{longtable}{p{5.2cm}p{8.8cm}}
+\toprule
+\textbf{Module} & \textbf{Role principal} \\
+\midrule
+\texttt{src/extraction} & Décompression des archives ZIP contenant les classements bruts. \\
+\texttt{src/parsing} & Extraction des données depuis les fichiers PDF. \\
+\texttt{src/cleaning} & Nettoyage, normalisation et correction des données extraites. \\
+\texttt{src/loading} & Définition du schema relationnel et chargement vers PostgreSQL. \\
+\texttt{src/utils} & Centralisation des fonctions utilitaires globales. \\
+\texttt{src/feature\_engineering} & Création de variables derivées pour l'analyse avancée et la modélisation. \\
+\texttt{src/streamlit\_app} & Interface interactive de consultation des données. \\
+\texttt{notebooks} & Analyses exploratoires, régression et clustering. \\
+\bottomrule
+\end{longtable}
+
+Un système de logging est mis en place pour suivre l'exécution du pipeline et identifier les éventuelles erreurs ou anomalies.
+
+Le point d'entrée principal est le fichier \texttt{src/pipeline.py}. Celui-ci permet d'exécuter l'ensemble du pipeline ETL ou une étape spécifique via l'argument \texttt{--step}. Les étapes disponibles sont : \texttt{unzip}, \texttt{parse}, \texttt{build}, \texttt{clean} et \texttt{load}.
+
+Les données intermédiaires sont stockées au format Parquet dans \texttt{data/processed/parquet}, ce qui permet de conserver une trace des résultats de chaque étape et de faciliter les reprises en cas d'erreur.
+
+Les autres modules sont exécutés de manière séparée pour des tâches spécifiques, notamment la création de variables, ce qui rend le projet plus flexible et modulaire.
+
+\subsection{Extraction des fichiers ZIP}
+
+La première étape consiste a décompresser les archives ZIP situées dans \texttt{data/raw/zip}. Ces archives ont été récupérées depuis la page officielle des archives du Challenge Condrusien \footnote{\url{https://challengecondrusien.com/archives/}}, qui centralise les classements historiques disponibles. Le module \texttt{extraction.unzip} parcourt récursivement les archives, extrait les fichiers et produit un rapport de synthèse. Ce rapport indique le nombre de fichiers extraits, le nombre de fichiers ignorés car déja présents et le volume total traité.
+
+\subsection{Parsing des fichiers PDF}
+
+Le parsing est l'étape la plus sensible du projet. Les fichiers PDF sont convertis en tableaux de données grâce a la bibliothèque \texttt{pdfplumber}. Le projet utilise un patron de conception de type \texttt{Strategy} et un \texttt{ParserFactory}, choisit automatiquement le parseur adapté au fichier analyse.
+
+Les stratégies implémentées permettent d'extraire toutes les données sur la plage de temps analysé et sont les suivantes :
+
+\begin{itemize}
+    \item \texttt{Parser2006\_2007}, adapté aux classements des annees 2006 et 2007 ;
+    \item \texttt{Parser2008\_2016}, adapté aux formats intermédiaires sans URL dans le texte ;
+    \item \texttt{Parser2017\_2024}, adapté aux formats plus récents contenant des marqueurs web ;
+    \item \texttt{Parser2025}, adapté aux classements produits par le chronometreur \texttt{Goal Timing}.
+\end{itemize}
+
+Chaque parseur extrait les champs principaux suivants : position, nom du coureur, club, sexe, catégorie, position dans la catégorie, temps, nom de la course, date et distance. Un identifiant de course, appelé \texttt{racekey}, est ensuite construit a partir du nom de la course, de la date et de la distance.
+
+Le service de parsing traite les fichiers en parallèle avec \texttt{ThreadPoolExecutor}. Il génère également un rapport indiquant le statut de chaque fichier : succès, fichier ignoré, erreur ou différence entre le nombre de participants attendu et le nombre de lignes parsées.
+
+Pour chaque fichier traité, un fichier Parquet est produit dans \texttt{data/processed/parquet} avec les données extraites. Ces fichiers intermédiaires sont ensuite utilisés pour les étapes suivantes du pipeline.
+
+\subsection{Consolidation}
+
+Apres le parsing, les fichiers Parquet intermédiaires sont consolidés dans un dataset unique. Cette étape concatène les résultats disponibles dans \texttt{data/processed/parquet}, supprime les éventuels doublons sur base de \texttt{racekey} et du nom du coureur, puis écrit le fichier \texttt{data/processed/results.parquet}.
+
+\subsection{Nettoyage et harmonisation}
+
+Le nettoyage est effectué par le module \texttt{cleaning.clean}. Il vise a rendre les données homogènes malgre les variations historiques de format. Les principales opérations sont :
+
+\begin{itemize}
+    \item harmonisation des catégories sportives vers des libellés standards ;
+    \item conversion des positions en entiers ;
+    \item normalisation des temps au format \texttt{HH:MM:SS} puis conversion en secondes ;
+    \item correction manuelle de certaines courses dont le nom ou la distance est mal extrait ;
+    \item suppression de noms de coureurs invalides ou non exploitables ;
+    \item correction ponctuelle de données coureurs connues ;
+    \item normalisation des noms des coureurs afin de reduire les doublons ou erreurs orthographiques.
+\end{itemize}
+
+Une partie complexe du nettoyage concerne la correction du nom des coureurs. Dans les classements historiques, une même personne peut apparaître sous plusieurs formes : inversion du nom et du prénom, accentuation différente, caractères parasites, espaces multiples, fautes de frappe ou variations dues à l'extraction PDF. Se limiter au nom brut risquerait donc de considérer une même personne comme plusieurs individus distincts.
+
+Le module \texttt{cleaning.clean\_names} applique d'abord une normalisation des chaînes de caractères : passage en majuscules, suppression des caractères non alphabétiques (tirets, apostrophes) et réduction des espaces multiples. Cette opération crée une colonne \texttt{Nom\_clean}, utilisée comme base de comparaison.
+
+La correction ne repose cependant pas uniquement sur la similarité du nom. Le code construit un profil par coureur a partir de plusieurs informations :
+
+\begin{itemize}
+    \item le nombre d'apparitions du nom dans les résultats ;
+    \item le sexe majoritaire observé ;
+    \item la vitesse moyenne du coureur ;
+    \item l'ensemble des courses auxquelles le coureur est associé, pour les coureurs fréquents.
+\end{itemize}
+
+Cette logique permet d'éviter des corrections trop agressives. Deux noms proches ne sont pas automatiquement fusionnés : ils doivent aussi être compatibles avec le profil sportif observé. Par exemple, deux profils de sexe différent ne sont pas rapprochés. De même, deux coureurs fréquents présents dans une même course ne peuvent pas être considérés comme une seule et même personne, car une personne ne peut pas avoir deux résultats distincts dans la même épreuve.
+
+La méthode fonctionne en deux passes.
+
+\begin{enumerate}[label=\arabic*.]
+    \item \textbf{Première passe : coureurs fréquents entre eux.} Les coureurs apparaissant au moins trois fois sont comparés deux a deux. La similarité du nom est calculée avec un score de fuzzy matching à l'aide de la bibliothèque \texttt{RapidFuzz}. Ce score est combiné avec un score de proximité de vitesse. Le score final donne un poids dominant au nom, mais conserve une vérification par la performance. Si deux profils sont suffisamment proches, le nom le plus fréquent devient le nom corrigé. Cette première passe sur les coureurs fréquents permet de créer une base de noms fiables pour la suite du processus.
+    \item \textbf{Deuxième passe : coureurs rares vs coureurs fréquents.} Après la première correction, les noms apparaissant moins de trois fois sont comparés aux coureurs fréquents. Pour limiter les comparaisons inutiles, une clé de blocage est créée a partir des premières lettres des parties du nom. Le fuzzy matching est ensuite appliqué uniquement a des candidats plausibles. Une correction est acceptée seulement si le score du nom et le score final dépassent des seuils élevés.
+\end{enumerate}
+
+Cette approche est volontairement prudente. L'objectif n'est pas de corriger tous les cas possibles, mais uniquement les cas pour lesquels le niveau de confiance est élevé. Cela signifie que certains doublons peuvent subsister, notamment lorsque le nom est très déformé, lorsque le coureur apparaît peu de fois ou lorsque son profil de coureur est insuffisant. En contrepartie, le risque de fusionner deux personnes différentes est réduit. Ce compromis est important pour ce travail d'analyse : il est préférable de conserver quelques doublons résiduels plutôt que de fusionner accidentellement des individus distincts.
+
+La fin de l'étape de nettoyage produit \texttt{data/cleaned/results.parquet}. Elle est essentielle car les analyses et les modèles dependent fortement de la qualité des variables temporelles, des catégories et des noms individuels de coureurs.
+
+\subsection{Modèle de données}
+
+Les données nettoyées sont chargées dans une base de données PostgreSQL selon un schema en étoile simple compte tenu de la nature plate des données et des analyses prévues.
+
+\begin{longtable}{p{4cm}p{10cm}}
+\toprule
+\textbf{Table} & \textbf{Description} \\
+\midrule
+\texttt{dim\_runner} & Dimension des coureurs. Elle contient l'identifiant du coureur, le nom original, le nom nettoyé et le sexe. \\
+\texttt{dim\_race} & Dimension des courses. Elle contient l'identifiant de course, la clé \texttt{racekey}, le nom, la distance, la date et l'année. \\
+\texttt{fact\_results} & Table de faits contenant une ligne par résultat : coureur, course, position, position categorie, temps, vitesse, catégorie et fichier source. \\
+\bottomrule
+\end{longtable}
+
+Bien que la catégorie puisse être considérée comme étant un attribut du coureur, elle est stockée dans la table de faits car elle peut varier d'une course à l'autre pour un même coureur (par exemple, un coureur peut être dans la catégorie "Senior" puis basculer dans la catégorie "Vétéran1" ensuite). De plus, cela permet de conserver une trace de la catégorie telle qu'elle a été observée dans les résultats, même si elle est parfois incohérente ou mal extraite.
+
+Le chargement utilise des caches en mémoire pour un accès rapide et pour éviter de recréer plusieurs fois les mêmes coureurs ou les mêmes courses. Les résultats sont insérés par lots afin d'améliorer les performances d'écriture.
+
+\subsection{Service PostgreSQL avec Docker}
+
+Pour ce développement, la base de données PostgreSQL est fournie par un service Docker défini dans \texttt{docker/docker-compose.yml}. Ce fichier décrit un conteneur PostgreSQL nommé \texttt{condrulytics\_postgres}, expose le port \texttt{5432} et crée une base \texttt{condrulytics} avec un utilisateur dédié. Un volume Docker, \texttt{postgres\_data}, est associé au service afin de conserver les données entre deux redémarrages du conteneur. Cette approche permet d'utiliser rapidement une base de données locale, sans dépendre d'une installation PostgreSQL propre à une machine. Le code Python communique avec la base via SQLAlchemy et une configuration de connexion, ce qui signifie que la base Docker peut très facilement être remplacée par une base distante. 
+
+Cette séparation entre le pipeline, l'application et le service de base de données donne au projet une structure modulaire et évolutive : les composants sont isolés, remplaçables et plus faciles à déployer progressivement.
+
+\section{Feature engineering}
+
+Le module \texttt{feature\_engineering.py} prépare un jeu de données destiné aux analyses avancées et a la modélisation. Les données sont lues depuis PostgreSQL puis enrichies avec plusieurs variables.
+
+\subsection{Variables individuelles}
+
+Pour chaque coureur, le code calcule le nombre de courses, la vitesse moyenne, l'écart-type des vitesses, la meilleure vitesse, la moins bonne vitesse, la première et la dernière année de participation, la durée de carrière et le nombre moyen de courses par an.
+
+\subsection{Variables de forme récente}
+
+La forme récente d'un coureur est approximee par des moyennes glissantes sur ses performances précédentes. Deux variables sont créees : une moyenne sur trois courses et une moyenne sur cinq courses. Le décalage d'une ligne avant calcul permet d'eviter d'utiliser la performance courante pour prédire ou expliquer cette meme performance ce qui itroduirait une fuite de données (\textit{data leakage}).
+
+\subsection{Tendance de performance}
+
+Une tendance linéaire de vitesse est estimée pour chaque coureur a l'aide d'une régression polynomiale simple de degre 1. Cette pente donne une indication de progression ou de régression globale dans le temps.
+
+\subsection{Segmentation par distance}
+
+Les distances sont réparties en trois groupes : courtes, moyennes et longues. Les seuils sont définis par les quantiles 33\% et 66\%, ce qui rend la segmentation adaptée à la distribution réelle des courses observées.
+
+\subsection{Normalisation par course}
+
+Pour comparer les performances entre courses, le code calcule la moyenne et l'ecart-type de vitesse au sein de chaque course. Une variable \texttt{speed\_z\_race} indique ensuite la position relative d'un coureur par rapport aux autres participants de la même epreuve.
+
+\section{Modélisation prédictive}
+
+\section{Visualisation interactive}
+
+Le projet inclut une application Streamlit nommée \textit{CondruLytics Dashboard}. Elle interroge la base PostgreSQL et propose plusieurs vues :
+
+\begin{itemize}
+    \item une vue d'ensemble des coureurs les plus presents et des courses les plus frequentees ;
+    \item une analyse par course, avec les resultats classes par position ;
+    \item une analyse par coureur, permettant de suivre les temps et performances au fil des annees.
+\end{itemize}
+
+Cette interface rend les donnees accessibles sans devoir manipuler directement des scripts Python ou des requetes SQL.
+
+\section{Technologies utilisees}
+
+Le projet repose principalement sur l'ecosysteme Python. Les bibliotheques centrales sont \texttt{pandas} et \texttt{numpy} pour la manipulation de donnees, \texttt{pdfplumber} pour l'extraction depuis les PDF, \texttt{SQLAlchemy} et \texttt{psycopg2} pour l'interaction avec PostgreSQL, \texttt{scikit-learn} pour les experimentations de modelisation, et \texttt{Streamlit} pour la visualisation interactive.
+
+Un fichier \texttt{docker-compose.yml} fournit un service PostgreSQL local, ce qui facilite la reproductibilite de l'environnement de stockage.
+
+\section{Limites identifiees}
+
+Malgre la structuration du pipeline, plusieurs limites doivent etre prises en compte.
+
+\begin{itemize}
+    \item Les PDF historiques restent heterogenes, ce qui impose des corrections specifiques et peut entrainer des erreurs de parsing.
+    \item Certaines corrections sont actuellement encodees manuellement, par exemple pour des noms de courses ou des distances particulieres.
+    \item L'identification des coureurs repose principalement sur le nom nettoye ; des homonymes ou des changements d'orthographe peuvent donc affecter les analyses longitudinales.
+    \item Certaines pages Streamlit construisent des requetes SQL a partir de valeurs selectionnees, ce qui pourrait etre securise davantage par des requetes parametrees.
+    \item La validation statistique des modeles predictifs n'est pas encore formalisee dans le pipeline principal.
+\end{itemize}
+
+\section{Perspectives d'amelioration}
+
+Plusieurs ameliorations peuvent etre envisagees :
+
+\begin{itemize}
+    \item ajouter des tests automatises pour les parseurs et les fonctions de nettoyage ;
+    \item externaliser les corrections manuelles dans des fichiers de configuration ;
+    \item enrichir l'identification des coureurs avec des methodes de rapprochement flou ;
+    \item documenter les indicateurs de qualite produits par les rapports de parsing ;
+    \item integrer les notebooks de regression et de clustering dans une demarche experimentale reproductible ;
+    \item completer le dashboard avec des filtres par annee, distance, sexe et categorie.
+\end{itemize}
+
+\section{Conclusion}
+
+Le projet \textit{CondruLytics} met en place une chaine de traitement complete pour transformer des classements PDF historiques en une base de donnees exploitable. L'approche modulaire permet de traiter des formats de fichiers differents, de nettoyer les donnees, de les stocker dans un schema relationnel et de les valoriser via des analyses et une application interactive.
+
+D'un point de vue academique, le projet illustre une demarche de data engineering appliquee a des donnees sportives reelles : collecte, extraction, structuration, nettoyage, modelisation des entites, creation de variables et restitution visuelle. Les prochaines etapes consisteraient a renforcer la validation des donnees et a formaliser davantage l'evaluation des modeles predictifs.
+
+\end{document}
