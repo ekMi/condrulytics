@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db_config import engine
-from .models import DimRunner, DimRace, FactResult
+from .models import DimRunner, DimRace, FactResult, create_tables
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,8 @@ def load_parquet_to_postgres(parquet_path: str, batch_size: int = 5000):
     df = pd.read_parquet(parquet_path)
 
     logger.info("Dataset chargé : %s lignes", len(df))
+
+    create_tables()
 
     session = Session(engine)
 

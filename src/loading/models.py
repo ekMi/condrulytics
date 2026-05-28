@@ -26,6 +26,7 @@ class DimRunner(Base):
     sex = Column(String)
 
     results = relationship("FactResult", back_populates="runner")
+    analyses = relationship("FactRunnerRaceAnalysis", back_populates="runner")
 
 
 class DimRace(Base):
@@ -42,6 +43,7 @@ class DimRace(Base):
     year = Column(Integer)
 
     results = relationship("FactResult", back_populates="race")
+    analyses = relationship("FactRunnerRaceAnalysis", back_populates="race")
 
 class FactResult(Base):
     __tablename__ = "fact_results"
@@ -64,6 +66,54 @@ class FactResult(Base):
 
     runner = relationship("DimRunner", back_populates="results")
     race = relationship("DimRace", back_populates="results")
+
+
+class FactRunnerRaceAnalysis(Base):
+    __tablename__ = "fact_runner_race_analysis"
+
+    analysis_id = Column(BigInteger, primary_key=True, autoincrement=True)
+
+    source_result_id = Column(BigInteger, unique=True, index=True)
+    runner_id = Column(BigInteger, ForeignKey("dim_runner.runner_id"), index=True)
+    race_id = Column(BigInteger, ForeignKey("dim_race.race_id"), index=True)
+
+    actual_position = Column(Integer)
+    actual_position_category = Column(Integer)
+    actual_time_sec = Column(Float)
+    actual_speed_kmh = Column(Float)
+
+    race_month = Column(Integer)
+    race_dayofyear = Column(Integer)
+    race_participants = Column(Integer)
+    race_mean_speed = Column(Float)
+    race_std_speed = Column(Float)
+    race_median_speed = Column(Float)
+
+    prior_race_count = Column(Integer)
+    prior_avg_speed = Column(Float)
+    prior_std_speed = Column(Float)
+    prior_best_speed = Column(Float)
+    prior_avg_z = Column(Float)
+    prior_std_z = Column(Float)
+    prior_best_z = Column(Float)
+    recent_speed_roll3 = Column(Float)
+    recent_z_roll3 = Column(Float)
+    days_since_last_race = Column(Float)
+    runner_history_years = Column(Float)
+
+    speed_z_race = Column(Float)
+    performance_index = Column(Float)
+    target_z = Column(Float)
+
+    predicted_z = Column(Float)
+    predicted_performance_index = Column(Float)
+    predicted_speed_kmh = Column(Float)
+    predicted_time_sec = Column(Float)
+    abs_error_time_sec = Column(Float)
+    split = Column(String)
+
+    runner = relationship("DimRunner", back_populates="analyses")
+    race = relationship("DimRace", back_populates="analyses")
 
 
 def create_tables():

@@ -1,6 +1,7 @@
 logs/
 log/
 data/
+models/
 __pycache__/
 *.pyc
 .env
