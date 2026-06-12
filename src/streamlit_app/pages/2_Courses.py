@@ -58,6 +58,11 @@ def format_signed_time(seconds):
 
 
 st.title("Courses")
+st.caption(
+    "Indice de performance : 100 = proche de la moyenne des participants de la course, "
+    "> 100 = plus rapide que la moyenne, < 100 = moins rapide. Exemple : 103 indique "
+    "une performance légèrement au-dessus de la moyenne, pas une note sur 100."
+)
 
 races = run_query(
     """
@@ -134,7 +139,8 @@ results = run_query(
 )
 
 results["time"] = results["time_sec"].apply(format_time)
-results["pace"] = (results["time_sec"] / float(race_info.distance)).apply(format_pace)
+results["pace_sec_km"] = results["time_sec"] / float(race_info.distance)
+results["pace"] = results["pace_sec_km"].apply(format_pace)
 results["time_min"] = results["time_sec"] / 60
 results["category_label"] = results["category_clean"].fillna("Non renseignée")
 
@@ -165,16 +171,20 @@ results["predicted_time"] = results["predicted_time_sec"].apply(format_time)
 results["time_gap_sec"] = results["time_sec"] - results["predicted_time_sec"]
 results["time_gap"] = results["time_gap_sec"].apply(format_signed_time)
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("Participants", len(results))
 col2.metric("Distance", f"{race_info.distance:.2f} km")
 col3.metric("Temps moyen", format_time(results["time_sec"].mean()))
-col4.metric("Vitesse moyenne", f"{results['speed_kmh'].mean():.2f} km/h")
+col4.metric("Allure moyenne", format_pace(results["pace_sec_km"].mean()))
+col5.metric("Vitesse moyenne", f"{results['speed_kmh'].mean():.2f} km/h")
 
 tab_results, tab_summary = st.tabs(["Classement", "Analyse"])
 
 with tab_results:
     st.caption("Cliquez sur le nom d'un coureur pour ouvrir sa fiche.")
+    st.caption(
+        "La colonne Indice compare chaque coureur au niveau observé sur cette même course."
+    )
 
     categories = ["Toutes"] + sorted(
         results["category_label"].astype(str).unique().tolist()
@@ -225,13 +235,23 @@ with tab_results:
             cols[9].write(f"{row.performance_index:.1f}" if pd.notna(row.performance_index) else "")
 
 with tab_summary:
+    st.caption(
+        "Les analyses ci-dessous décrivent la course sélectionnée ; l'indice sert à "
+        "situer une performance par rapport aux participants de cette course."
+    )
+
     category_counts = (
         results.groupby("category_label", dropna=False)
-        .size()
-        .reset_index(name="participants")
+        .agg(
+            participants=("result_id", "count"),
+            mean_pace_sec_km=("pace_sec_km", "mean"),
+            mean_speed_kmh=("speed_kmh", "mean"),
+        )
+        .reset_index()
         .sort_values("participants", ascending=False)
         .head(12)
     )
+    category_counts["allure_moyenne"] = category_counts["mean_pace_sec_km"].apply(format_pace)
     category_chart = (
         alt.Chart(category_counts)
         .mark_bar(color="#0f766e")
@@ -241,6 +261,8 @@ with tab_summary:
             tooltip=[
                 alt.Tooltip("category_label:N", title="Catégorie"),
                 alt.Tooltip("participants:Q", title="Participants"),
+                alt.Tooltip("allure_moyenne:N", title="Allure moyenne"),
+                alt.Tooltip("mean_speed_kmh:Q", title="Vitesse moyenne", format=".2f"),
             ],
         )
     )
@@ -255,6 +277,7 @@ with tab_summary:
             best_time_sec=("time_sec", "min"),
             mean_time_sec=("time_sec", "mean"),
             median_time_sec=("time_sec", "median"),
+            mean_pace_sec_km=("pace_sec_km", "mean"),
             mean_speed_kmh=("speed_kmh", "mean"),
         )
         .reset_index()
@@ -263,6 +286,7 @@ with tab_summary:
     category_summary["meilleur temps"] = category_summary["best_time_sec"].apply(format_time)
     category_summary["temps moyen"] = category_summary["mean_time_sec"].apply(format_time)
     category_summary["temps médian"] = category_summary["median_time_sec"].apply(format_time)
+    category_summary["allure moyenne"] = category_summary["mean_pace_sec_km"].apply(format_pace)
     category_summary["vitesse moyenne"] = category_summary["mean_speed_kmh"].apply(
         lambda value: f"{value:.2f} km/h" if pd.notna(value) else ""
     )
@@ -275,6 +299,7 @@ with tab_summary:
                 "meilleur temps",
                 "temps moyen",
                 "temps médian",
+                "allure moyenne",
                 "vitesse moyenne",
             ]
         ].rename(columns={"category_label": "catégorie"}),

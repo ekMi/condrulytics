@@ -50,6 +50,17 @@ def format_pace(seconds_per_km):
     return f"{seconds // 60:d}:{seconds % 60:02d}/km"
 
 
+def format_signed_time(seconds):
+    if pd.isna(seconds):
+        return ""
+
+    sign = "+" if seconds > 0 else "-"
+    seconds = abs(int(round(seconds)))
+    minutes = seconds // 60
+    secs = seconds % 60
+    return f"{sign}{minutes:d}:{secs:02d}"
+
+
 def open_race(race_id):
     st.session_state["selected_race_id"] = int(race_id)
     st.switch_page(RACE_PAGE)
@@ -77,6 +88,11 @@ def make_numeric_domain(dataframe, columns, min_margin=1.0):
 
 
 st.title("Coureurs")
+st.caption(
+    "Indice de performance : 100 = proche de la moyenne des participants de la course, "
+    "> 100 = plus rapide que la moyenne, < 100 = moins rapide. Exemple : 103 indique "
+    "une performance légèrement au-dessus de la moyenne, pas une note sur 100."
+)
 
 runners = run_query(
     """
@@ -176,8 +192,14 @@ history["pace_sec_km"] = history["time_sec"] / history["distance"]
 history["pace"] = history["pace_sec_km"].apply(format_pace)
 history["speed"] = history["speed_kmh"].round(2).astype(str) + " km/h"
 history["predicted_time"] = history["predicted_time_sec"].apply(format_time)
+history["predicted_pace_sec_km"] = history["predicted_time_sec"] / history["distance"]
+history["predicted_pace"] = history["predicted_pace_sec_km"].apply(format_pace)
+history["predicted_speed_kmh"] = history["distance"] / history["predicted_time_sec"] * 3600
 history["time_gap_sec"] = history["time_sec"] - history["predicted_time_sec"]
+history["time_gap"] = history["time_gap_sec"].apply(format_signed_time)
 history["index_gap"] = history["performance_index"] - history["predicted_performance_index"]
+history["reference_index"] = 100
+has_expected_history = history["predicted_time_sec"].notna().any()
 
 total_distance = history["distance"].sum()
 avg_pace = history["pace_sec_km"].mean()
@@ -206,79 +228,132 @@ x_date = alt.X(
     title="Date",
     axis=alt.Axis(format="%Y-%m", tickCount=7, labelAngle=-35, labelOverlap=True),
 )
-performance_domain = make_numeric_domain(history, ["performance_index"])
+performance_domain = make_numeric_domain(history, ["performance_index", "reference_index"])
 
 with tab_profile:
     left, right = st.columns([2, 1])
 
     profile_history = history.dropna(subset=["predicted_performance_index"]).copy()
-    profile_domain = make_numeric_domain(
-        history,
-        ["performance_index", "predicted_performance_index"],
+    if profile_history.empty:
+        st.caption(
+            "Le graphique suit l'indice du coureur au fil du temps. Bleu = indice réel, "
+            "ligne grise = moyenne de la course (100)."
+        )
+    else:
+        st.caption(
+            "Le graphique suit l'indice du coureur au fil du temps. Bleu = indice réel, "
+            "orange pointillé = indice attendu par le modèle, ligne grise = moyenne de "
+            "la course (100)."
+        )
+
+    actual_profile = history.copy()
+    actual_profile["serie"] = "Indice réel"
+    actual_profile["index_value"] = actual_profile["performance_index"]
+    actual_profile["display_position"] = actual_profile["position"].apply(
+        lambda value: f"{int(value)}" if pd.notna(value) else ""
     )
 
-    index_chart = (
-        alt.Chart(history)
-        .mark_line(point=True, color="#2563eb")
+    expected_profile = profile_history.copy()
+    expected_profile["serie"] = "Indice attendu"
+    expected_profile["index_value"] = expected_profile["predicted_performance_index"]
+
+    profile_series = actual_profile
+    if not profile_history.empty:
+        profile_series = pd.concat(
+            [actual_profile, expected_profile],
+            ignore_index=True,
+        )
+    profile_domain = make_numeric_domain(
+        profile_series,
+        ["index_value", "reference_index"],
+    )
+
+    series_domain = ["Indice réel", "Indice attendu"] if not profile_history.empty else ["Indice réel"]
+    color_range = ["#2563eb", "#c2410c"] if not profile_history.empty else ["#2563eb"]
+    dash_range = [[], [6, 4]] if not profile_history.empty else [[]]
+
+    series_color = alt.Color(
+        "serie:N",
+        title="Légende",
+        legend=alt.Legend(orient="top", direction="horizontal"),
+        scale=alt.Scale(
+            domain=series_domain,
+            range=color_range,
+        ),
+    )
+    series_dash = alt.StrokeDash(
+        "serie:N",
+        legend=None,
+        scale=alt.Scale(
+            domain=series_domain,
+            range=dash_range,
+        ),
+    )
+
+    actual_line = (
+        alt.Chart(actual_profile)
+        .mark_line(point=True)
         .encode(
             x=x_date,
             y=alt.Y(
-                "performance_index:Q",
+                "index_value:Q",
                 title="Indice de performance",
                 scale=alt.Scale(domain=profile_domain, zero=False),
             ),
+            color=series_color,
+            strokeDash=series_dash,
             tooltip=[
                 alt.Tooltip("race:N", title="Course"),
                 alt.Tooltip("distance:Q", title="Distance", format=".2f"),
-                alt.Tooltip("position:Q", title="Position"),
+                alt.Tooltip("display_position:N", title="Position"),
                 alt.Tooltip("time:N", title="Temps"),
                 alt.Tooltip("pace:N", title="Allure"),
-                alt.Tooltip("performance_index:Q", title="Indice", format=".1f"),
+                alt.Tooltip("speed_kmh:Q", title="Vitesse (km/h)", format=".2f"),
+                alt.Tooltip("index_value:Q", title="Indice", format=".1f"),
             ],
         )
     )
 
-    if profile_history.empty:
-        left.altair_chart(index_chart.properties(height=340), use_container_width=True)
-    else:
-        expected_line = (
-            alt.Chart(profile_history)
-            .mark_line(color="#c2410c")
-            .encode(
-                x=x_date,
-                y=alt.Y(
-                    "predicted_performance_index:Q",
-                    title="Indice de performance",
-                    scale=alt.Scale(domain=profile_domain, zero=False),
-                ),
-                tooltip=[
-                    alt.Tooltip("race:N", title="Course"),
-                    alt.Tooltip("predicted_performance_index:Q", title="Indice attendu", format=".1f"),
-                    alt.Tooltip("predicted_time:N", title="Temps attendu"),
-                ],
-            )
+    expected_line = (
+        alt.Chart(expected_profile)
+        .mark_line(point=True)
+        .encode(
+            x=x_date,
+            y=alt.Y(
+                "index_value:Q",
+                title="Indice de performance",
+                scale=alt.Scale(domain=profile_domain, zero=False),
+            ),
+            color=series_color,
+            strokeDash=series_dash,
+            tooltip=[
+                alt.Tooltip("race:N", title="Course"),
+                alt.Tooltip("distance:Q", title="Distance", format=".2f"),
+                alt.Tooltip("predicted_time:N", title="Temps attendu"),
+                alt.Tooltip("predicted_pace:N", title="Allure attendue"),
+                alt.Tooltip("predicted_speed_kmh:Q", title="Vitesse attendue (km/h)", format=".2f"),
+                alt.Tooltip("index_value:Q", title="Indice attendu", format=".1f"),
+            ],
         )
-        expected_points = (
-            alt.Chart(profile_history)
-            .mark_circle(size=65, color="#c2410c")
-            .encode(
-                x=x_date,
-                y=alt.Y(
-                    "predicted_performance_index:Q",
-                    title="Indice de performance",
-                    scale=alt.Scale(domain=profile_domain, zero=False),
-                ),
-                tooltip=[
-                    alt.Tooltip("race:N", title="Course"),
-                    alt.Tooltip("predicted_performance_index:Q", title="Indice attendu", format=".1f"),
-                    alt.Tooltip("predicted_time:N", title="Temps attendu"),
-                ],
-            )
+    )
+    reference_line = (
+        alt.Chart(pd.DataFrame({"reference_index": [100]}))
+        .mark_rule(color="#64748b", strokeDash=[3, 3])
+        .encode(
+            y=alt.Y("reference_index:Q", title="Indice de performance"),
+            tooltip=[alt.Tooltip("reference_index:Q", title="Moyenne course")],
         )
-        left.altair_chart(
-            (expected_line + expected_points + index_chart).properties(height=340),
-            use_container_width=True,
-        )
+    )
+
+    left.markdown("**Évolution dans le temps**")
+    profile_chart = reference_line + actual_line
+    if not profile_history.empty:
+        profile_chart = profile_chart + expected_line
+
+    left.altair_chart(
+        profile_chart.properties(height=340),
+        use_container_width=True,
+    )
 
     distance_index = (
         alt.Chart(history)
@@ -294,11 +369,18 @@ with tab_profile:
                 alt.Tooltip("race:N", title="Course"),
                 alt.Tooltip("year:Q", title="Année"),
                 alt.Tooltip("distance:Q", title="Distance", format=".2f"),
+                alt.Tooltip("time:N", title="Temps"),
+                alt.Tooltip("pace:N", title="Allure"),
+                alt.Tooltip("speed_kmh:Q", title="Vitesse (km/h)", format=".2f"),
                 alt.Tooltip("performance_index:Q", title="Indice", format=".1f"),
             ],
         )
     )
-    right.altair_chart(distance_index.properties(height=340), use_container_width=True)
+    right.markdown("**Indice selon la distance**")
+    right.altair_chart(
+        (reference_line + distance_index).properties(height=340),
+        use_container_width=True,
+    )
 
 with tab_simulation:
     st.subheader("Simulation rétrospective sur une course non courue")
@@ -353,16 +435,39 @@ with tab_simulation:
                 col2.metric("Allure estimée", format_pace(prediction["predicted_pace_sec_km"]))
                 col3.metric("Vitesse estimée", f"{prediction['predicted_speed_kmh']:.2f} km/h")
                 col4.metric("Indice estimé", f"{prediction['predicted_performance_index']:.1f}")
+                st.caption(
+                    "L'indice estimé se lit sur la même échelle : 100 correspond à "
+                    "la moyenne attendue sur cette course."
+                )
 
-                st.write(
-                    f"Z-score estimé : {prediction['predicted_z']:.2f}. "
-                    f"Historique utilisé : au moins trois courses précédentes."
+                predicted_index = prediction["predicted_performance_index"]
+                if predicted_index > 101:
+                    index_label = "au-dessus de la moyenne attendue"
+                elif predicted_index < 99:
+                    index_label = "en dessous de la moyenne attendue"
+                else:
+                    index_label = "proche de la moyenne attendue"
+                st.info(
+                    f"Lecture : l'indice estimé situe ce coureur {index_label} "
+                    "pour cette course."
+                )
+                st.caption(
+                    f"Détail technique : z-score estimé {prediction['predicted_z']:.2f}. "
+                    "Historique utilisé : au moins trois courses précédentes."
                 )
 
 with tab_details:
     st.caption("Cliquez sur le nom d'une course pour ouvrir sa page.")
+    if has_expected_history:
+        st.caption(
+            "Écart = temps réalisé moins temps attendu. Une valeur négative signifie "
+            "que le coureur a été plus rapide que prévu."
+        )
 
-    header = st.columns([1.0, 3.0, 1.0, 0.9, 1.0, 1.0, 0.9, 0.9, 1.0, 1.0])
+    base_widths = [1.0, 2.8, 0.9, 0.8, 1.0, 0.9, 0.9, 0.8, 0.9]
+    expected_widths = [0.9, 0.8] if has_expected_history else []
+
+    header = st.columns(base_widths + expected_widths)
     header[0].caption("Date")
     header[1].caption("Course")
     header[2].caption("Distance")
@@ -372,11 +477,13 @@ with tab_details:
     header[6].caption("Allure")
     header[7].caption("Vit.")
     header[8].caption("Indice")
-    header[9].caption("Attendu")
+    if has_expected_history:
+        header[9].caption("Attendu")
+        header[10].caption("Écart")
 
     with st.container(height=620, border=True):
         for row in history.sort_values("date", ascending=False).itertuples():
-            cols = st.columns([1.0, 3.0, 1.0, 0.9, 1.0, 1.0, 0.9, 0.9, 1.0, 1.0])
+            cols = st.columns(base_widths + expected_widths)
             cols[0].write(row.date.strftime("%Y-%m-%d"))
             if cols[1].button(row.race, key=f"runner_race_{row.result_id}", use_container_width=True):
                 open_race(row.race_id)
@@ -387,4 +494,6 @@ with tab_details:
             cols[6].write(row.pace)
             cols[7].write(f"{row.speed_kmh:.2f}")
             cols[8].write(f"{row.performance_index:.1f}" if pd.notna(row.performance_index) else "")
-            cols[9].write(row.predicted_time)
+            if has_expected_history:
+                cols[9].write(row.predicted_time)
+                cols[10].write(row.time_gap)

@@ -38,6 +38,14 @@ def open_race(race_id):
     st.switch_page(RACE_PAGE)
 
 
+def format_pace(seconds_per_km):
+    if pd.isna(seconds_per_km):
+        return ""
+
+    seconds = int(round(seconds_per_km))
+    return f"{seconds // 60:d}:{seconds % 60:02d}/km"
+
+
 st.title("Vue d'ensemble")
 
 summary = run_query(
@@ -71,7 +79,8 @@ yearly = run_query(
         COUNT(DISTINCT ra.race_id) AS races,
         COUNT(*) AS results,
         COUNT(DISTINCT f.runner_id) AS runners,
-        AVG(f.speed_kmh) AS avg_speed
+        AVG(f.speed_kmh) AS avg_speed,
+        AVG(f.time_sec / NULLIF(ra.distance, 0)) AS avg_pace_sec_km
     FROM fact_results f
     JOIN dim_race ra ON f.race_id = ra.race_id
     GROUP BY ra.year
@@ -80,6 +89,7 @@ yearly = run_query(
 )
 default_year = int(yearly["year"].max())
 active_year = int(st.session_state.get("overview_selected_year", default_year))
+yearly["avg_pace"] = yearly["avg_pace_sec_km"].apply(format_pace)
 yearly["year_status"] = yearly["year"].apply(
     lambda year: "Année sélectionnée" if int(year) == active_year else "Autres années"
 )
@@ -108,6 +118,7 @@ participation_chart = (
             alt.Tooltip("results:Q", title="Résultats"),
             alt.Tooltip("runners:Q", title="Coureurs"),
             alt.Tooltip("avg_speed:Q", title="Vitesse moyenne", format=".2f"),
+            alt.Tooltip("avg_pace:N", title="Allure moyenne"),
         ],
     )
 )
@@ -134,7 +145,8 @@ year_races = run_query(
         ra.date,
         ra.distance,
         COUNT(*) AS participants,
-        AVG(f.speed_kmh) AS avg_speed
+        AVG(f.speed_kmh) AS avg_speed,
+        AVG(f.time_sec / NULLIF(ra.distance, 0)) AS avg_pace_sec_km
     FROM fact_results f
     JOIN dim_race ra ON f.race_id = ra.race_id
     WHERE ra.year = :year
@@ -143,20 +155,23 @@ year_races = run_query(
     """,
     {"year": selected_year},
 )
+year_races["avg_pace"] = year_races["avg_pace_sec_km"].apply(format_pace)
 
 right.markdown(f"**Courses en {selected_year}**")
 table_box = right.container(height=320, border=True)
-header = table_box.columns([3.4, 1.0, 1.3])
+header = table_box.columns([3.0, 0.9, 1.1, 1.2])
 header[0].caption("Course")
 header[1].caption("Km")
 header[2].caption("Part.")
+header[3].caption("Allure")
 
 for row in year_races.itertuples():
-    cols = table_box.columns([3.4, 1.0, 1.3])
+    cols = table_box.columns([3.0, 0.9, 1.1, 1.2])
     if cols[0].button(row.name, key=f"overview_year_race_{row.race_id}", use_container_width=True):
         open_race(row.race_id)
     cols[1].write(f"{row.distance:.1f}")
     cols[2].write(int(row.participants))
+    cols[3].write(row.avg_pace)
 
 st.subheader("Courses et distances")
 
@@ -169,12 +184,14 @@ race_profile = run_query(
         ra.distance,
         COUNT(*) AS participants,
         AVG(f.speed_kmh) AS avg_speed,
+        AVG(f.time_sec / NULLIF(ra.distance, 0)) AS avg_pace_sec_km,
         STDDEV_SAMP(f.speed_kmh) AS speed_std
     FROM fact_results f
     JOIN dim_race ra ON f.race_id = ra.race_id
     GROUP BY ra.race_id, ra.name, ra.year, ra.distance
     """
 )
+race_profile["avg_pace"] = race_profile["avg_pace_sec_km"].apply(format_pace)
 race_profile["year_status"] = race_profile["year"].apply(
     lambda year: "Année sélectionnée" if int(year) == selected_year else "Autres années"
 )
@@ -205,6 +222,7 @@ distance_chart = (
             alt.Tooltip("distance:Q", title="Distance", format=".2f"),
             alt.Tooltip("participants:Q", title="Participants"),
             alt.Tooltip("avg_speed:Q", title="Vitesse moyenne", format=".2f"),
+            alt.Tooltip("avg_pace:N", title="Allure moyenne"),
         ],
     )
 )

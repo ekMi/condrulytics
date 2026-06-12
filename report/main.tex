@@ -75,7 +75,7 @@
 
     \vfill
 
-    {\large \today\par}
+    {\large Juin 2026\par}
 \end{titlepage}
 
 \pagenumbering{roman}
@@ -91,9 +91,9 @@ Le projet couvre les principales étapes d'un pipeline de données : extraction 
 
 \subsection{Contexte}
 
-Le \textbf{Challenge Condrusien} \footnote{\url{https://challengecondrusien.com}} est un challenge de course à pied amateur sur routes et chemins vallonés qui regroupe une vingtaine d'organisation chaque année dans le Condroz liégeois. Chaque organisation propose différentes distances: une petite sous les 7km, une longue entre 10 et 17km et parfois une version trail de plus de 20km. Les classements contiennent notamment le nom des coureurs, leur position générale, leur catégorie, leur temps, leur club, la distance de la course et la date de l'épreuve. Les fichiers ZIP de départ proviennent de la page officielle des archives du Challenge Condrusien \footnote{\url{https://challengecondrusien.com/archives/}}. Les données d'archives couvrent la periode 2006-2025 à l'exception de l'année 2020 en raison de la pandémie de COVID-19.
+Le \textbf{Challenge Condrusien} \footnote{\url{https://challengecondrusien.com}} est un challenge de course à pied amateur sur routes et chemins vallonés qui regroupe une vingtaine d'organisation chaque année dans le Condroz liégeois. Chaque organisation propose différentes distances: une petite sous les 7km, une longue entre 10 et 20km et parfois une version trail de plus de 20km. Les classements contiennent notamment le nom des coureurs, leur position générale, leur catégorie, leur temps, leur club, la distance de la course et la date de l'épreuve. Les fichiers ZIP de départ proviennent de la page officielle des archives du Challenge Condrusien \footnote{\url{https://challengecondrusien.com/archives/}}. Les données d'archives couvrent la periode 2006-2025 à l'exception de l'année 2020 en raison de la pandémie de COVID-19.
 
-La difficulté principale provient du fait que les classements ne suivent pas un format unique. Les PDF présentent des structures differentes : colonnes absentes, ordre variable des champs, présence ou non du numero de dossard, informations de course encodées dans le texte, ou encore changements de mise en page selon les années. Le projet répond a cette contrainte par l'utilisation de plusieurs parseurs spécialisés. Après cette étape d'extraction, les données sont nettoyées pour harmoniser les catégories, normaliser les temps et corriger les erreurs d'extraction. Le format des noms des coureurs sont strandardisés et certaines erreurs de saisie sont corrigées. La base de données relationnelle créée permet ensuite de structurer les données pour des analyses, des expérimentations de modélisation et différentes visualisations interactives.
+La difficulté principale provient du fait que les classements ne suivent pas un format unique. Les PDF présentent des structures differentes : colonnes absentes, ordre variable des champs, présence ou non du numéro de dossard, informations de course encodées dans le texte, ou encore changements de mise en page selon les années. Le projet répond a cette contrainte par l'utilisation de plusieurs parseurs spécialisés. Après cette étape d'extraction, les données sont nettoyées pour harmoniser les catégories, normaliser les temps et corriger les erreurs d'extraction. Le format des noms des coureurs sont strandardisés et certaines erreurs de saisie sont corrigées. La base de données relationnelle créée permet ensuite de structurer les données pour des analyses, des expérimentations de modélisation et différentes visualisations interactives.
 
 \subsection{Objectifs}
 
@@ -216,7 +216,7 @@ Les stratégies implémentées permettent d'extraire toutes les données sur la 
 
 Chaque parseur extrait les champs principaux suivants : position, nom du coureur, club, sexe, catégorie, position dans la catégorie, temps, nom de la course, date et distance. Un identifiant de course, appelé \texttt{racekey}, est ensuite construit a partir du nom de la course, de la date et de la distance.
 
-Le service de parsing traite les fichiers en parallèle avec \texttt{ThreadPoolExecutor}. Il génère également un rapport indiquant le statut de chaque fichier : succès, fichier ignoré, erreur ou différence entre le nombre de participants attendu et le nombre de lignes parsées.
+Le service de parsing traite les fichiers en parallèle avec \texttt{ThreadPoolExecutor}. Il génère également un rapport indiquant le statut de chaque fichier : succès, fichier ignoré, erreur ou différence entre le nombre de participants attendu et le nombre de lignes parsées (lorque cette information est disponible dans le pdf).
 
 Pour chaque fichier traité, un fichier Parquet est produit dans \texttt{data/processed/parquet} avec les données extraites. Ces fichiers intermédiaires sont ensuite utilisés pour les étapes suivantes du pipeline.
 
@@ -255,7 +255,7 @@ Cette logique permet d'éviter des corrections trop agressives. Deux noms proche
 La méthode fonctionne en deux passes.
 
 \begin{enumerate}[label=\arabic*.]
-    \item \textbf{Première passe : coureurs fréquents entre eux.} Les coureurs apparaissant au moins trois fois sont comparés deux a deux. La similarité du nom est calculée avec un score de fuzzy matching à l'aide de la bibliothèque \texttt{RapidFuzz}. Ce score est combiné avec un score de proximité de vitesse. Le score final donne un poids dominant au nom, mais conserve une vérification par la performance. Si deux profils sont suffisamment proches, le nom le plus fréquent devient le nom corrigé. Cette première passe sur les coureurs fréquents permet de créer une base de noms fiables pour la suite du processus.
+    \item \textbf{Première passe : coureurs fréquents entre eux.} Les coureurs apparaissant au moins trois fois sont comparés. La similarité du nom est calculée avec un score de fuzzy matching à l'aide de la bibliothèque \texttt{RapidFuzz}. Ce score est combiné avec un score de proximité de vitesse. Le score final donne un poids dominant au nom, mais conserve une vérification par la performance. Si deux profils sont suffisamment proches, le nom le plus fréquent devient le nom corrigé. Cette première passe sur les coureurs fréquents permet de créer une base de noms fiables pour la suite du processus.
     \item \textbf{Deuxième passe : coureurs rares vs coureurs fréquents.} Après la première correction, les noms apparaissant moins de trois fois sont comparés aux coureurs fréquents. Pour limiter les comparaisons inutiles, une clé de blocage est créée a partir des premières lettres des parties du nom. Le fuzzy matching est ensuite appliqué uniquement à des candidats plausibles. Une correction est acceptée seulement si le score du nom et le score final dépassent des seuils élevés.
 \end{enumerate}
 
@@ -336,7 +336,7 @@ Les données nettoyées sont chargées dans une base de données PostgreSQL selo
 
 Bien que la catégorie puisse être considérée comme étant un attribut du coureur, elle est stockée dans la table de faits car elle peut varier d'une course à l'autre pour un même coureur (par exemple, un coureur peut être dans la catégorie "Senior" puis basculer dans la catégorie "Vétéran1" ensuite). De plus, cela permet de conserver une trace de la catégorie telle qu'elle a été observée dans les résultats, même si elle est parfois incohérente ou mal extraite.
 
-Le schéma est ensuite étendu pour les besoins d'analyse et de prédiction. Pour rester dans une logique BI classique, cette extension prend la forme d'une seconde table de faits, \texttt{fact\_runner\_race\_analysis}. Elle a la même granularité que \texttt{fact\_results} : une observation correspond à un coureur sur une course. Elle partage donc les mêmes dimensions \texttt{dim\_runner} et \texttt{dim\_race}, mais elle n'est pas modélisée comme une table fille de \texttt{fact\_results}. La colonne \texttt{source\_result\_id} est conservée uniquement comme identifiant technique de traçabilité vers le résultat d'origine.
+Le schéma est ensuite étendu pour les besoins d'analyse et de prédiction. Cette extension prend la forme d'une seconde table de faits, \texttt{fact\_runner\_race\_analysis}. Elle a la même granularité que \texttt{fact\_results} : une observation correspond à un coureur sur une course. Elle partage donc les mêmes dimensions \texttt{dim\_runner} et \texttt{dim\_race}, mais elle n'est pas modélisée comme une table fille de \texttt{fact\_results}. La colonne \texttt{source\_result\_id} est conservée uniquement comme identifiant technique de traçabilité vers le résultat d'origine.
 
 \begin{figure}[h!]
     \centering
@@ -413,7 +413,7 @@ Le chargement utilise des caches en mémoire pour un accès rapide et pour évit
 
 \subsection{Service PostgreSQL avec Docker}
 
-Pour ce développement, la base de données PostgreSQL est fournie par un service Docker défini dans \texttt{docker/docker-compose.yml}. Ce fichier décrit un conteneur PostgreSQL nommé \texttt{condrulytics\_postgres}, expose le port \texttt{5432} et crée une base \texttt{condrulytics} avec un utilisateur dédié. Un volume Docker, \texttt{postgres\_data}, est associé au service afin de conserver les données entre deux redémarrages du conteneur. Cette approche permet d'utiliser rapidement une base de données locale, sans dépendre d'une installation PostgreSQL propre à une machine. Le code Python communique avec la base via SQLAlchemy et une configuration de connexion, ce qui signifie que la base Docker peut très facilement être remplacée par une base distante. 
+Pour ce développement, la base de données PostgreSQL est fournie par un service Docker défini dans \texttt{docker/docker-compose.yml}. Ce fichier décrit un conteneur PostgreSQL nommé \texttt{condrulytics\_postgres}, expose le port \texttt{5432} et crée une base \texttt{condrulytics} avec un utilisateur dédié. Un volume Docker, \texttt{postgres\_data}, est associé au service afin de conserver les données entre deux redémarrages du conteneur. Cette approche permet d'utiliser rapidement une base de données locale, sans dépendre d'une installation PostgreSQL propre à une machine. Le code Python communique avec la base via SQLAlchemy et une configuration de connexion, ce qui signifie que la base Docker pourrait très facilement être remplacée par une base distante. 
 
 
 \subsection{Feature engineering}
@@ -442,9 +442,9 @@ Pour l'interface finale, le z-score peut servir de base à un indice de performa
 indice = 100 + 10 \times z
 \]
 
-Avec cette convention, un indice de 100 correspond à une performance moyenne dans la course. Un indice de 110 correspond à une performance située un écart-type au-dessus de la moyenne, et un indice de 90 à une performance située un écart-type en dessous. Cette transformation ne change pas l'information, mais elle produit une échelle plus lisible.
+Avec cette convention, un indice de 100 correspond à une performance moyenne dans la course. Un indice de 110 correspond à une performance située un écart-type au-dessus de la moyenne, et un indice de 90 à une performance située un écart-type en dessous. Cette transformation ne change pas l'information, mais elle produit une échelle plus lisible pour les utilisateurs.
 
-Cet indice sera utilisé dans l'application pour montrer l'évolution d'un coureur au fil du temps, indépendamment des distances exactes.
+Cet indice sera utilisé dans l'application pour montrer l'évolution d'un coureur au fil du temps, indépendamment des distances exactes. Une courte explication est affichée dans l'accueil, dans la vue course et dans la vue coureur afin de rappeler cette lecture au moment où l'utilisateur voit les graphiques et les tableaux.
 
 \subsubsection{Variables historiques par coureur}
 
@@ -499,7 +499,7 @@ temps\_predit = \frac{distance}{vitesse\_predite} \times 3600
 
 Le projet contient un module de régression (\texttt{src/modeling/regression.py}) qui entraîne une régression linéaire pour prédire \texttt{target\_z}.
 
-Les variables utilisées sont les cuivantes : distance de la course, mois et jour de l'année, nombre de courses précédentes, vitesse moyenne passée, régularité, meilleur niveau observé, performance récente sur trois courses, temps depuis la dernière course et ancienneté du coureur dans l'historique.
+Les variables utilisées sont les suivantes : distance de la course, mois et jour de l'année, nombre de courses précédentes, vitesse moyenne passée, régularité, meilleur niveau observé, performance récente sur trois courses, temps depuis la dernière course et ancienneté du coureur dans l'historique.
 
 Le découpage train/test est temporel : les années anciennes servent à l'entraînement et l'année la plus récente (2025) sert au test.
 
@@ -543,7 +543,7 @@ Les résultats ne montrent pas de surapprentissage évident : le score de test r
 
 Les variables les plus influentes sont la performance récente du coureur (moyenne des trois derniers z-scores), la vitesse moyenne passée, la distance de la course et la performance moyenne passée. Ces résultats sont cohérents avec l'intuition : un coureur qui a été rapide récemment et qui a une bonne moyenne de vitesse dans le passé est plus susceptible d'avoir un bon z-score sur une nouvelle course. La distance de la course a un impact négatif, ce qui peut s'expliquer par le fait que les performances relatives ont tendance à être plus faibles sur les longues distances, où la variabilité est plus grande.
 
-Les prédictions historiques sont stockées dans PostgreSQL, directement dans la table \texttt{fact\_runner\_race\_analysis}. Les colonnes \texttt{predicted\_z}, \texttt{predicted\_time\_sec} et \texttt{abs\_error\_time\_sec} complètent alors les features et les mesures réelles du même résultat. Cela permet de comparer les temps réels et les temps estimés dans l'interface sans créer une relation directe entre les deux tables de faits. Le modèle lui-même est sauvegardé localement.
+Les prédictions historiques sont stockées dans la base de données. Les colonnes \texttt{predicted\_z}, \texttt{predicted\_time\_sec} et \texttt{abs\_error\_time\_sec} complètent alors les features et les mesures réelles du même résultat. Cela permet de comparer les temps réels et les temps estimés dans l'interface sans créer une relation directe entre les deux tables de faits. Le modèle lui-même est sauvegardé localement.
 
 Tout comme le feature engineering, la génération des prédictions historiques est lancée manuellement afin de garder une démarche simple :
 
@@ -572,6 +572,19 @@ Le projet inclut une application Streamlit nommée \textit{CondruLytics}. Elle i
     \item une vue par course;
     \item une vue par coureur.
 \end{itemize}
+
+\subsection{Personas et questions de visualisation}
+
+Pour vérifier que les visuels répondent à des besoins concrets, deux personas simples ont été utilisés comme guide de conception. L'objectif n'est pas de couvrir tous les profils possibles, mais de garder en tête des questions réalistes de coureurs lorsqu'ils ouvrent l'application.
+
+\begin{longtable}{p{3.2cm}p{5.3cm}p{5.4cm}}
+\toprule
+\textbf{Persona} & \textbf{Besoin principal} & \textbf{Questions auxquelles les visuels doivent répondre} \\
+\midrule
+\textbf{Claire, coureuse loisir} & Comprendre rapidement ses résultats sans vocabulaire statistique. Elle veut savoir si elle progresse et comment lire l'indice affiché dans l'application. & Est-ce que mes performances s'améliorent au fil du temps ? Sur quelles courses ai-je fait mieux que d'habitude ? Que signifie un indice comme 103 ? \\
+\textbf{Marc, coureur régulier} & Comparer ses courses et préparer ses objectifs. Il accepte davantage de détails, mais veut des indicateurs directement actionnables. & Sur quelles distances suis-je le plus performant ? Ai-je fait mieux ou moins bien que le temps attendu ? Quel serait mon niveau sur une course non courue ? \\
+\bottomrule
+\end{longtable}
 
 \subsection{Vue d'ensemble}
 
@@ -653,7 +666,7 @@ Ce projet part de classements historiques du Challenge Condrusien au format PDF 
     \item La simulation est rétrospective : la course cible doit deja exister dans l'historique.
 \end{itemize}
 
-\subsection{Perspectives d'amelioration}
+\subsection{Perspectives d'amélioration}
 
 \begin{itemize}
     \item Ajouter des tests automatisés sur le parsing, le nettoyage et les transformations.

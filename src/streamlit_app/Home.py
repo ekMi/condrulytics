@@ -43,6 +43,20 @@ with col3:
     st.markdown("**Coureurs**")
     st.write("Suivre l'historique et l'évolution des performances individuelles.")
 
+st.subheader("Comment lire l'indice de performance ?")
+st.info(
+    "L'indice compare une performance aux autres coureurs de la même course. "
+    "100 correspond à une performance proche de la moyenne de cette course. "
+    "Au-dessus de 100, le coureur a été plus rapide que la moyenne ; en dessous "
+    "de 100, il a été moins rapide. Par exemple, 103 signifie légèrement au-dessus "
+    "de la moyenne, pas une note sur 100."
+)
+st.caption(
+    "Cet indice sert surtout à comparer l'évolution d'un coureur entre des courses "
+    "de distances différentes. Il reste influencé par le niveau des participants "
+    "présents sur chaque course."
+)
+
 st.warning(
     "Mise en garde : les analyses dépendent des données sources. "
     "Des erreurs peuvent subsister, notamment à cause de noms mal orthographiés, "
