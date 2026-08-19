@@ -8,7 +8,8 @@ from sqlalchemy import text
 from .regression import FEATURE_COLUMNS
 
 
-DEFAULT_ARTIFACT_PATH = "models/linear_regression_z_score.joblib"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_ARTIFACT_PATH = PROJECT_ROOT / "models" / "linear_regression_z_score.joblib"
 
 
 def _read_sql(engine, query: str, params: dict | None = None) -> pd.DataFrame:
@@ -20,7 +21,7 @@ def _seconds_per_km(time_sec: float, distance: float) -> float:
     return time_sec / distance if distance else np.nan
 
 
-def load_model_artifact(path: str = DEFAULT_ARTIFACT_PATH) -> dict:
+def load_model_artifact(path: str | Path = DEFAULT_ARTIFACT_PATH) -> dict:
     artifact_path = Path(path)
 
     if not artifact_path.exists():

@@ -1,0 +1,7 @@
+\babel@toc {french}{}\relax 
+\beamer@sectionintoc {1}{Données et pipeline}{6}{0}{1}
+\beamer@sectionintoc {2}{Nettoyage}{9}{0}{2}
+\beamer@sectionintoc {3}{Modélisation}{11}{0}{3}
+\beamer@sectionintoc {4}{Personas et application}{15}{0}{4}
+\beamer@sectionintoc {5}{Conclusion}{18}{0}{5}
+\beamer@sectionintoc {6}{Backup}{23}{1}{6}
